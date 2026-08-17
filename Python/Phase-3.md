@@ -189,3 +189,102 @@ Two reasoning gaps surfaced while answering the practice questions:
        return basket
    ```
 2. For scope/`UnboundLocalError` issues: use the `global` keyword when a global variable must be reassigned inside a function, or — as a generally preferred practice — avoid mutating globals altogether and instead return the new value, reassigning it at the call site.
+
+
+# Phase 3 Supplement: Understanding `%` and `//` in `sum_digits`
+
+## Context
+
+This supplements Q5 of the Phase 3 practice questions (`sum_digits` recursion), clarifying how `n % 10` isolates the last digit and how the recursive return value builds up.
+
+## 1. What `%` (modulo) Actually Does
+
+`%` is the **modulo operator** — it returns the **remainder** after division. It is not a digit-counting operation; it's plain arithmetic that happens to isolate the last digit when dividing by 10.
+
+```
+123 % 10
+```
+means: divide `123` by `10`, and return what's **left over**.
+
+```
+123 ÷ 10 = 12 remainder 3
+```
+- `10` goes into `123` a total of `12` times (`12 × 10 = 120`)
+- What's left over: `123 - 120 = 3`
+
+So `123 % 10 = 3`.
+
+## 2. Why This Grabs the Last Digit
+
+This works specifically because we're dividing by **10**, and our number system is base 10. Dividing any whole number by `10` always leaves the **last digit** as the remainder, since every digit except the last one is a multiple of 10.
+
+```
+123 = 12 × 10 + 3
+      ^^^^^^^   ^
+      multiple  what's left = last digit
+      of 10
+```
+
+| Expression | Division | Remainder |
+|---|---|---|
+| `123 % 10` | 123 ÷ 10 = 12 r **3** | `3` |
+| `47 % 10`  | 47 ÷ 10 = 4 r **7**   | `7` |
+| `900 % 10` | 900 ÷ 10 = 90 r **0** | `0` |
+| `5 % 10`   | 5 ÷ 10 = 0 r **5**    | `5` |
+
+## 3. Its Partner: `//` (Floor Division)
+
+`//` gives the **quotient** — how many times the divisor fits in, rounded down to a whole number. Together, `%` and `//` split a number into "last digit" and "everything else":
+
+```
+123 // 10 = 12   # rest of the number, last digit dropped
+123 % 10  = 3    # just the last digit
+```
+
+This is why the recursive function uses both:
+```python
+n % 10 + sum_digits(n // 10)
+#  ^last digit      ^everything else, passed to the next call
+```
+
+## 4. How the Recursive Return Value Builds Up
+
+`sum_digits(n // 10)` is a function call that hasn't finished yet — Python must fully run that call (which may call itself again) before the `+` can happen. Each call **pauses**, waiting on the call below it.
+
+### Walking through `sum_digits(123)`
+
+**Going down (each call pauses, waiting for the next):**
+```
+sum_digits(123)
+  return 3 + sum_digits(12)      ← PAUSED, waiting for sum_digits(12)
+
+    sum_digits(12)
+      return 2 + sum_digits(1)   ← PAUSED, waiting for sum_digits(1)
+
+        sum_digits(1)
+          return 1 + sum_digits(0)  ← PAUSED, waiting for sum_digits(0)
+
+            sum_digits(0)
+              n=0 IS <= 0 → base case
+              return 0            ← finishes immediately, no waiting
+```
+
+**Going back up (each paused call gets its missing piece and finishes):**
+```
+sum_digits(1)   was waiting for sum_digits(0) → got 0  → returns 1 + 0 = 1
+sum_digits(12)  was waiting for sum_digits(1) → got 1  → returns 2 + 1 = 3
+sum_digits(123) was waiting for sum_digits(12) → got 3 → returns 3 + 3 = 6
+```
+
+Final answer: `sum_digits(123) = 6` (check: 1 + 2 + 3 = 6). ✅
+
+### Mental Model: IOUs
+
+| Call | What it says | What it's waiting on |
+|---|---|---|
+| `sum_digits(123)` | "I'll return `3 + ?`" | `sum_digits(12)` |
+| `sum_digits(12)`  | "I'll return `2 + ?`" | `sum_digits(1)` |
+| `sum_digits(1)`   | "I'll return `1 + ?`" | `sum_digits(0)` |
+| `sum_digits(0)`   | "I'll return `0`" | nothing — base case, pays immediately |
+
+Digits are **peeled off on the way down** (`n % 10` each call). They only get **added up on the way back up**, starting once the base case supplies the first real number.
